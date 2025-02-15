@@ -1,3 +1,11 @@
+# Gradle files
+.gradle/
+build/
+
+# Local configuration file (sdk path, etc)
+local.properties
+
+# Log/OS Files
 # Miscellaneous
 *.class
 *.log
@@ -12,12 +20,26 @@
 .swiftpm/
 migrate_working_dir/
 
+# Android Studio generated files and folders
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+output.json
+
+# IntelliJ
 # IntelliJ related
 *.iml
 *.ipr
 *.iws
 .idea/
+misc.xml
+deploymentTargetDropDown.xml
+render.experimental.xml
 
+# Keystore files
+*.jks
+*.keystore
 # The .vscode folder contains launch configuration and tasks you configure in
 # VS Code which you may wish to be included in version control, so this line
 # is commented out by default.
@@ -33,9 +55,13 @@ migrate_working_dir/
 .pub/
 /build/
 
+# Google Services (e.g. APIs or Firebase)
+google-services.json
 # Symbolication related
 app.*.symbols
 
+# Android Profiling
+*.hprof
 # Obfuscation related
 app.*.map.json
 
