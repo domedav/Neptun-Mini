@@ -3,14 +3,16 @@ import 'package:neptunmini/json/json_serializable.dart';
 import 'package:reflectable/reflectable.dart';
 import 'package:http/http.dart' as http;
 
-class StringsReflectable extends Reflectable {
+final class StringsReflectable extends Reflectable {
   const StringsReflectable() : super(declarationsCapability, staticInvokeCapability, instanceInvokeCapability);
 }
 
 const stringsReflectable = const StringsReflectable();
 
 /// All String values, regardless of current language
-class AppStrings{
+final class AppStrings{
+  /// The default string, which is displayed when a string resource is missing
+  static const String _defaultMissingString = "!MISSING!";
   /// This is called, to fetch all values from the selected language for use
   static Future<void> initializeStrings()async{
     // Get the keys class
@@ -28,9 +30,9 @@ class AppStrings{
     // Clear all, from previous lang
     _loadedStringRes.clear();
     // Get the new json to use
-    Map<String, dynamic> json = jsonDecode(AppLanguage.totalyRealJson());
+    Map<String, dynamic> json = jsonDecode(StringsManager._getSelectedLanguageJson());
     // Default value, when any else is missing
-    _loadedStringRes.addAll({0: AppLanguage.defaultMissingString});
+    _loadedStringRes.addAll({0: _defaultMissingString});
     // set up values, corresponding to the predefined
     mirror.declarations.forEach((key, _){
       if(_loadedStringRes.containsKey(key)){
@@ -42,7 +44,7 @@ class AppStrings{
       _loadedStringRes.addAll({mirror.invokeGetter(key) as int: json[key]});
     });
 
-    final manifest = await LanguageDownloader._fetchLanguageManifest();
+    final manifest = await StringsManager._fetchLanguageManifest();
     print(StringsManifest.toJson(StringsManifest.fromJson(StringsManifest.toJson(manifest))));
   }
 
@@ -76,7 +78,7 @@ class AppStrings{
 
 /// Stores the ids, which can be found in the language json
 @stringsReflectable
-class AppStringIds{
+final class AppStringIds{
   static bool _hasSetUp = false;
   //-------------------------------------
   // The names must match with the json
@@ -84,27 +86,14 @@ class AppStringIds{
   static late final int appDeveloper;
 }
 
-/// Handles loading the selected language into the AppStrings class
-class AppLanguage{
-  /// The default string, which is displayed when a string resource is missing
-  static const String defaultMissingString = "!MISSING!";
-  /// This is used to get the placeholders, for all the values
-  /// USE FOR DEVELOPMENT ONLY
-  static String generateEmptyJson(){
-    Map<String, String> result = {};
-    ClassMirror mirror = stringsReflectable.reflectType(AppStringIds) as ClassMirror;
-    mirror.declarations.forEach((key, _){
-      result.addAll({key:"NULL"});
-    });
-    return jsonEncode(result);
+/// Responsible for any language downloading, and fetching logic
+final class StringsManager{
+
+  ///Returns the currently selected language json
+  static String _getSelectedLanguageJson(){
+    return "{}";
   }
 
-  static String totalyRealJson(){
-    return generateEmptyJson();
-  }
-}
-
-class LanguageDownloader{
   /// Defines the manifest on the server
   static const String _stringsManifestUrl = "https://raw.githubusercontent.com/domedav/Neptun-Mini/refs/heads/main/dynamic-resources/stringsmanifest.json";
 
@@ -128,7 +117,7 @@ class LanguageDownloader{
 
 @stringsReflectable
 /// Local manifest, this matches the one on the server
-class StringsManifest{
+final class StringsManifest{
   late final int langpackVersion;
   late final String huUrl;
   late final String enUrl;

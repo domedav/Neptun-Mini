@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:neptunmini/network/connection.dart';
+import 'package:neptunmini/resources/storage.dart';
 import 'package:neptunmini/resources/strings.dart';
 import 'main.reflectable.dart';
 
 void main() {
   initializeReflectable(); // flutter packages pub run build_runner build
   final binding = WidgetsFlutterBinding.ensureInitialized();
-  AppConnection.initializeConnection().whenComplete((){
-    AppStrings.initializeStrings().whenComplete((){
-      final app = const NeptunMiniRoot();
-      runApp(app);
-      WidgetsBinding.instance.addObserver(app);
+  AppStorage.initializeKeys().whenComplete(()async{
+    AppConnection.initializeConnection().whenComplete((){
+      AppStrings.initializeStrings().whenComplete((){
+        final app = const NeptunMiniRoot();
+        runApp(app);
+        WidgetsBinding.instance.addObserver(app);
+      });
     });
   });
 }
