@@ -1,7 +1,7 @@
 {
   "langpackVersion": 1,
-  "huUrl": "",
-  "enUrl": "",
-  "deUrl": "",
-  "esUrl": ""
+  "huUrl": "https://raw.githubusercontent.com/domedav/Neptun-Mini/refs/heads/main/dynamic-resources/hu-langpack.json",
+  "enUrl": "https://raw.githubusercontent.com/domedav/Neptun-Mini/refs/heads/main/dynamic-resources/en-langpack.json",
+  "deUrl": "https://raw.githubusercontent.com/domedav/Neptun-Mini/refs/heads/main/dynamic-resources/de-langpack.json",
+  "esUrl": "https://raw.githubusercontent.com/domedav/Neptun-Mini/refs/heads/main/dynamic-resources/es-langpack.json"
 }
