@@ -129,6 +129,15 @@ class AppStorage{
 @storageReflectable
 /// Stores the keys, which can be used for storing data
 class AppStorageKeys{
-  static late final String hasDownloadedMustResources;
-  static const bool default_hasDownloadedMustResources = false;
+  static late final String appStringsHasDownloaded;
+  static const bool default_appStringsHasDownloaded = false;
+
+  static late final String appStringsLastCheckTimestamp;
+  static const int default_appStringsLastCheckTimestamp = 0;
+
+  static late final String appStringsDownloadedVersion;
+  static const int default_appStringsDownloadedVersion = 0;
+
+  static late final String appLastLaunchedVersionId;
+  static const int default_appLastLaunchedVersionId = 0;
 }

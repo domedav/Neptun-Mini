@@ -1,7 +1,11 @@
 import 'dart:convert';
 import 'package:neptunmini/json/json_serializable.dart';
+import 'package:neptunmini/network/connection.dart';
+import 'package:neptunmini/resources/locales.dart';
+import 'package:neptunmini/resources/network_loader.dart';
+import 'package:neptunmini/resources/storage.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:reflectable/reflectable.dart';
-import 'package:http/http.dart' as http;
 
 final class StringsReflectable extends Reflectable {
   const StringsReflectable() : super(declarationsCapability, staticInvokeCapability, instanceInvokeCapability);
@@ -10,11 +14,11 @@ final class StringsReflectable extends Reflectable {
 const stringsReflectable = const StringsReflectable();
 
 /// All String values, regardless of current language
-final class AppStrings{
+class AppStrings{
   /// The default string, which is displayed when a string resource is missing
   static const String _defaultMissingString = "!MISSING!";
   /// This is called, to fetch all values from the selected language for use
-  static Future<void> initializeStrings()async{
+  static Future<StringLoadMode> initializeStrings()async{
     // Get the keys class
     ClassMirror mirror = stringsReflectable.reflectType(AppStringIds) as ClassMirror;
     // Multiple setups are allowed, for dynamic language change
@@ -29,27 +33,92 @@ final class AppStrings{
     }
     // Clear all, from previous lang
     _loadedStringRes.clear();
-    // Get the new json to use
-    Map<String, dynamic> json = jsonDecode(StringsManager._getSelectedLanguageJson());
     // Default value, when any else is missing
     _loadedStringRes.addAll({0: _defaultMissingString});
-    // set up values, corresponding to the predefined
+    final loadMode = await _getStringLoadMode();
+    switch (loadMode){
+      case StringLoadMode.warn:
+      case StringLoadMode.offline:
+        final locale = AppLocales.getCurrentLocale();
+        if(locale == AppLocale.none){
+          return loadMode;
+        }
+        // set up language based on the locale
+        final currentLocale = locale.name.toLowerCase();
+        ClassMirror appStringIdsClass = stringsReflectable.reflectType(AppStringIds) as ClassMirror;
+        _setupByJson(await AppStorage.getData<String>('appLanguage$currentLocale'), appStringIdsClass);
+        return loadMode;
+      case StringLoadMode.online:
+        final manifest = await ResourceNetworkLoader.fetchLanguageManifest();
+        final currentVersion = await AppStorage.getData<int>(AppStorageKeys.appStringsDownloadedVersion);
+        if(manifest.langpackVersion == currentVersion){ // we are on the desired version, no need to download anything
+          return loadMode;
+        }
+
+        final locale = AppLocales.getCurrentLocale();
+        if(locale == AppLocale.none){
+          return loadMode;
+        }
+
+        // contains all concurrent futures
+        List<Future<dynamic>> futures = [];
+
+        ClassMirror mirror = stringsReflectable.reflectType(StringsManifest) as ClassMirror;
+        InstanceMirror instance = stringsReflectable.reflect(manifest);
+        mirror.declarations.forEach((key, _){
+          // loop thru all keys
+          if(key.toLowerCase().contains('url')){
+            // is a language propery
+            futures.add( // add to list
+              Future(()async{
+                // fetch json by key
+                final json = await ResourceNetworkLoader.fetchLanguageFromUrl(instance.invokeGetter(key).toString());
+                // save json onto key
+                final newKey = key.toLowerCase().replaceAll('url', '');
+                await AppStorage.setData('appLanguage$newKey', json.toString());
+              })
+            );
+          }
+        });
+        // wait till all langauges are finalized
+        await Future.wait(futures);
+
+        // set up language based on the locale
+        final currentLocale = locale.name.toLowerCase();
+        ClassMirror appStringIdsClass = stringsReflectable.reflectType(AppStringIds) as ClassMirror;
+        _setupByJson(await AppStorage.getData<String>('appLanguage$currentLocale'), appStringIdsClass);
+
+        // if online execution, means we are 100% on the latest strings resources
+        Future(()async{
+          await AppStorage.setData(AppStorageKeys.appStringsHasDownloaded, true);
+          await AppStorage.setData(AppStorageKeys.appStringsLastCheckTimestamp, DateTime.now().millisecondsSinceEpoch);
+          await AppStorage.setData(AppStorageKeys.appLastLaunchedVersionId, int.parse((await PackageInfo.fromPlatform()).buildNumber));
+          await AppStorage.setData(AppStorageKeys.appStringsDownloadedVersion, manifest.langpackVersion);
+        });
+        return loadMode;
+      default:
+        return loadMode;
+    }
+  }
+
+  static void _setupByJson(String jsonString, ClassMirror mirror){
+    final json = jsonDecode(jsonString) as Map<String, dynamic>;
+
+    // set up values, corresponding to the json
     mirror.declarations.forEach((key, _){
       if(_loadedStringRes.containsKey(key)){
         throw "Duplicate key found!";
       }
       else if(!json.containsKey(key)){
-        throw "Key: '$key' is not in json!";
+        print("Key: '$key' is not in json!"); // non fatal error, as we can just use the missing resource
+        return; // but we cant add null to the resources
       }
       _loadedStringRes.addAll({mirror.invokeGetter(key) as int: json[key]});
     });
-
-    final manifest = await StringsManager._fetchLanguageManifest();
-    print(StringsManifest.toJson(StringsManifest.fromJson(StringsManifest.toJson(manifest))));
   }
 
   /// Obtain a string value by the given Id
-  static String getStringById(int resourceId){
+  static String getString(int resourceId){
     if(!_loadedStringRes.containsKey(resourceId)){
       return _loadedStringRes[0]!;
     }
@@ -58,7 +127,7 @@ final class AppStrings{
 
   /// Obtain a string value by the given Id, filling the placeholders with the given params
   static String getStringWithParams(int resourceId, List<dynamic> params){
-    var string = getStringById(resourceId);
+    var string = getString(resourceId);
     if(!string.contains('%1')){
       throw "The given string, doesnt support parameters!";
     }
@@ -74,11 +143,41 @@ final class AppStrings{
 
   /// The currently selected language strings loaded here, in this map
   static final Map<int, String> _loadedStringRes = {};
+
+  static Future<StringLoadMode> _getStringLoadMode()async{
+    final hasInternet = AppConnection.hasInternet() && !AppConnection.isDatasaver(); // we have internet, and we can download
+    final hasDefaultStrings = await AppStorage.getData<bool>(AppStorageKeys.appStringsHasDownloaded); // do we have strings at all
+    final lastCheckedTime = DateTime.fromMillisecondsSinceEpoch(await AppStorage.getData<int>(AppStorageKeys.appStringsLastCheckTimestamp)); // can we check for strings? we should only do this once a day
+    final lastAppVersion = await AppStorage.getData<int>(AppStorageKeys.appLastLaunchedVersionId); // can we check for strings? we should only do this once a day
+    final currentAppVersion = int.parse((await PackageInfo.fromPlatform()).buildNumber);
+    if(!hasDefaultStrings && !hasInternet){ // no downloaded languages, and no internet to download them => fatal error, cant display anything to user
+      return StringLoadMode.fatal; // cant use the app
+    }
+    else if(!hasInternet && lastAppVersion != currentAppVersion){ // no internet, and the app needs the new strings
+        return StringLoadMode.warn; // can use the app, but warn user, that some resources are missing
+    }
+    else if(
+      !hasInternet // no internet
+      || (lastCheckedTime.add(Duration(days: 1)).millisecondsSinceEpoch > DateTime.now().millisecondsSinceEpoch) // or already checked for new languages in 24h period
+    ){
+      return StringLoadMode.offline; // use the downloaded language
+    }
+    else {
+      return StringLoadMode.online; // download language otherwise
+    }
+  }
+}
+
+enum StringLoadMode {
+  online,
+  offline,
+  warn,
+  fatal
 }
 
 /// Stores the ids, which can be found in the language json
 @stringsReflectable
-final class AppStringIds{
+class AppStringIds{
   static bool _hasSetUp = false;
   //-------------------------------------
   // The names must match with the json
@@ -86,38 +185,9 @@ final class AppStringIds{
   static late final int appDeveloper;
 }
 
-/// Responsible for any language downloading, and fetching logic
-final class StringsManager{
-
-  ///Returns the currently selected language json
-  static String _getSelectedLanguageJson(){
-    return "{}";
-  }
-
-  /// Defines the manifest on the server
-  static const String _stringsManifestUrl = "https://raw.githubusercontent.com/domedav/Neptun-Mini/refs/heads/main/dynamic-resources/stringsmanifest.json";
-
-  /// Download the manifest from the server
-  static Future<StringsManifest> _fetchLanguageManifest()async{
-    // Download manifest from server
-    final response = jsonDecode((await http.get(Uri.parse(_stringsManifestUrl))).body) as Map<String, dynamic>;
-    // Construct an instance, with proper values from the fetched
-    ClassMirror mirror = stringsReflectable.reflectType(StringsManifest) as ClassMirror;
-    InstanceMirror instance = stringsReflectable.reflect(StringsManifest());
-    mirror.declarations.forEach((key, _){
-      if(!response.containsKey(key)){
-        throw "Key: '$key' is not in response json!";
-      }
-      // Set instance values from json keys dynamically
-      instance.invokeSetter(key, response[key]);
-    });
-    return (instance.reflectee as StringsManifest);
-  }
-}
-
 @stringsReflectable
 /// Local manifest, this matches the one on the server
-final class StringsManifest{
+class StringsManifest{
   late final int langpackVersion;
   late final String huUrl;
   late final String enUrl;

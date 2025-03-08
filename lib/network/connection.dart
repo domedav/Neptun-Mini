@@ -19,16 +19,16 @@ class AppConnection{
     _connectivity!.onConnectivityChanged.listen(_onConnectivity);
 
     // Run a check for connections
-    await _connectivity!.checkConnectivity();
+    _onConnectivity(await _connectivity!.checkConnectivity());
   }
 
   /// Callback for changes
   static void _onConnectivity(List<ConnectivityResult> list){
-    if(list.contains(ConnectivityResult.wifi)){
+    if(list.contains(ConnectivityResult.wifi) || list.contains(ConnectivityResult.ethernet)){ // check wifi/ethernet first, we can have mobiledata here, but OS prioritizes unlimited
       // Unlimited access for networking
       _connectivityState = 2;
     }
-    else if(list.contains(ConnectivityResult.mobile)){
+    else if(list.contains(ConnectivityResult.mobile)){ // check mobiledata state, as no wifi
       // Datasaver behaviour
       _connectivityState = 1;
     }
