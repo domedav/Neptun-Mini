@@ -32,9 +32,7 @@ class ResourceNetworkLoader{
 
   static Future<String> fetchLanguageFromUrl(String url)async{
     print('Downloading from url: $url');
-    final response = jsonDecode(
-        (await http.get(Uri.parse(url))).body
-    ).toString();
-    return response;
+    final response = jsonDecode((await http.get(Uri.parse(url))).body) as Map<String, dynamic>; // without casting, it doesnt work :(
+    return jsonEncode(response);
   }
 }

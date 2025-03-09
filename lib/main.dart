@@ -1,8 +1,11 @@
 // flutter packages pub run build_runner build
 import 'dart:io';
+import 'dart:ui';
 
+import 'package:dynamic_color/dynamic_color.dart';
 import 'package:flutter/material.dart';
 import 'package:neptunmini/network/connection.dart';
+import 'package:neptunmini/pages/login_page.dart';
 import 'package:neptunmini/pages/main_page.dart';
 import 'package:neptunmini/resources/locales.dart';
 import 'package:neptunmini/resources/storage.dart';
@@ -16,42 +19,39 @@ void main() {
   AppStorage.initializeKeys().whenComplete(()async{
     AppConnection.initializeConnection().whenComplete((){
       AppStrings.initializeStrings().then((result)async{
-        print('String mode: $result');
-        appLoadMode = result;
-        if(appLoadMode == StringLoadMode.fatal){
+        print('Has missing strings: ${AppStrings.hasMissingStrings}\nString mode: $result');
+        if(result == StringLoadMode.fatal){
           //TODO: implement some way to tell this to the user
           print("fatal error in loading the app");
           exit(1); // cant load the app, fatal error
           throw "fatal error in loading the app";
         }
-        appRoot = const NeptunMiniRoot();
+        appRoot = AppRoot();
         runApp(appRoot);
         WidgetsBinding.instance.addObserver(appRoot);
-        await AppThemes.initializeThemes();
-        initializedThemes = true;
-        // we can re-build the app, as soon as the appthemes are initialized, this ensures that the correct theme is shown for the user
-        appBinding.drawFrame();
         Future(()async{
-          print(await AppStorage.getData(AppStorageKeys.appStringsDownloadedVersion));
-          print(await AppStorage.getData(AppStorageKeys.appStringsLastCheckTimestamp));
-          print(await AppStorage.getData(AppStorageKeys.appStringsHasDownloaded));
-          print(await AppStorage.getData(AppStorageKeys.appLastLaunchedVersionId));
-          //print(await AppStorage.getData("appLanguagehu"));
+          print("App Strings Version: " + (await AppStorage.getData(AppStorageKeys.appStringsDownloadedVersion)).toString());
+          print("Last Checked Strings Time: " + DateTime.fromMillisecondsSinceEpoch(await AppStorage.getData(AppStorageKeys.appStringsLastCheckTimestamp)).toString());
+          print("App Launched Version: " + (await AppStorage.getData(AppStorageKeys.appLastLaunchedVersionId)).toString());
         });
       });
     });
   });
 }
 
-/// Themes need to be initialized, in order to provide platform specific app theming
-bool initializedThemes = false;
-
-late NeptunMiniRoot appRoot;
+late AppRoot appRoot;
 late WidgetsBinding appBinding;
-late StringLoadMode appLoadMode;
 
-class NeptunMiniRoot extends StatelessWidget with WidgetsBindingObserver {
-  const NeptunMiniRoot({super.key});
+class AppRoot extends StatelessWidget with WidgetsBindingObserver {
+  void Function(void Function())? rebuild; // without this, we just cant rebuild this widget
+  AppRoot({super.key});
+
+  @override
+  Future<AppExitResponse> didRequestAppExit() {
+    WidgetsBinding.instance.removeObserver(appRoot); // cleanup
+    rebuild = null;
+    return super.didRequestAppExit();
+  }
 
   /// User has changed the language of the device, without closing the app
   @override
@@ -60,57 +60,85 @@ class NeptunMiniRoot extends StatelessWidget with WidgetsBindingObserver {
     AppLocales.resetLocale();
     // Re-init the app strings
     AppStrings.initializeStrings();
+    // re-build
+    if(rebuild != null){
+      rebuild!((){
+        rebuild = null;
+      });
+    }
     super.didChangeLocales(locales);
   }
 
   /// User has changed the native text size, without closing the app
   @override
   void didChangeTextScaleFactor() {
-    // Re-init the app themes
-    AppThemes.initializeThemes();
+    // re-build
+    if(rebuild != null){
+      rebuild!((){
+        rebuild = null;
+      });
+    }
     super.didChangeTextScaleFactor();
   }
 
   /// User has changed the darkmode, without closing the app
   @override
   void didChangePlatformBrightness() {
-    // Re-init the app themes
-    AppThemes.initializeThemes();
+    // re-build
+    if(rebuild != null){
+      rebuild!((){
+        rebuild = null;
+      });
+    }
     super.didChangePlatformBrightness();
   }
 
   @override
   Widget build(BuildContext context) {
-    //final palette = AppThemes.currentPalette;
-    return MaterialApp(
-      title: AppStrings.getString(AppStringIds.appName),
-      theme: ThemeData(
-        /*colorScheme: ColorScheme(
-            brightness: palette.brightness,
-            primary: palette.primary,
-            onPrimary: palette.onPrimary,
-            surface: palette.background,
-            onSurface: palette.onBackground,
-            // unsused colors
-            secondary: palette.primary,
-            onSecondary: palette.onPrimary,
-            error: palette.primary,
-            onError: palette.onPrimary,
-        ),*/
-        useMaterial3: true,
-      ),
-      scrollBehavior: MaterialScrollBehavior(), // This is to ensure the modern android-12 scrolling behaviour
-      initialRoute: "/",
-      routes: {
-        // root page
-        "/": (BuildContext context){
-          if(!initializedThemes){
-            // no concrete app theme, dont load anything
-            return Scaffold();
+    return StatefulBuilder(
+      builder: (context, setState) {
+        rebuild = setState;
+        return DynamicColorBuilder(
+          builder: ((ColorScheme? lightDynamic, ColorScheme? darkDynamic) {
+            AppThemes.applyThemes(appBinding.platformDispatcher.platformBrightness, MediaQuery.of(context).textScaler, lightMaterialYou: lightDynamic, darkMaterialYou: darkDynamic);
+            return MaterialApp(
+              title: AppStrings.getString(AppStringIds.appName),
+              theme: _getThemeData(),
+              scrollBehavior: MaterialScrollBehavior(), // This is to ensure the modern android-12 scrolling behaviour
+              initialRoute: '/',
+              routes: {
+                '/': (context){
+                  return AppLoginPage();
+                },
+                '/login': (context){
+                  return AppLoginPage();
+                },
+                '/main': (context){
+                  return AppMainPage();
+                },
+              },
+            );
           }
-          return AppMainPage(warnMissingStrings: appLoadMode == StringLoadMode.warn);
-        }
-      },
+        ));
+      }
+    );
+  }
+
+  ThemeData _getThemeData(){
+    return ThemeData(
+      colorScheme: ColorScheme(
+        brightness: ThemeCore.brightnessTheme,
+        primary: ThemeCore.colorPrimary,
+        onPrimary: ThemeCore.colorOnPrimary,
+        surface: ThemeCore.colorBackground,
+        onSurface: ThemeCore.colorOnBackground,
+        secondary: ThemeCore.colorPrimaryVariant,
+        onSecondary: ThemeCore.colorOnPrimaryVariant,
+        // unset
+        error: Colors.red.shade800,
+        onError: Colors.redAccent.shade100,
+      ),
+      useMaterial3: true,
     );
   }
 }

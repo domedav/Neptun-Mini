@@ -13,10 +13,45 @@ final class StringsReflectable extends Reflectable {
 
 const stringsReflectable = const StringsReflectable();
 
+/// Stores the ids, which can be found in the language json
+@stringsReflectable
+class AppStringIds{
+  static bool _hasSetUp = false;
+  //-------------------------------------
+  // The names must match with the json
+  static late final int appName;
+  static late final int appDeveloper;
+
+  static late final int loginGreetHeaderText;
+  static late final int loginUrlInputFieldHint;
+  static late final int loginUrlQuestionmarkHint;
+}
+
+@stringsReflectable
+/// Local manifest, this matches the one on the server
+class StringsManifest{
+  late final int langpackVersion;
+  late final String huUrl;
+  late final String enUrl;
+  late final String deUrl;
+  late final String esUrl;
+
+  /// Create a json from instance
+  static String toJson(StringsManifest stringsManifest){
+    return JsonSerialize.toJson(stringsReflectable, stringsManifest);
+  }
+
+  /// Create an instance from json
+  static StringsManifest fromJson(String json){
+    return JsonSerialize.fromJson(stringsReflectable, StringsManifest(), json);
+  }
+}
+
 /// All String values, regardless of current language
 class AppStrings{
   /// The default string, which is displayed when a string resource is missing
   static const String _defaultMissingString = "!MISSING!";
+  static bool hasMissingStrings = false;
   /// This is called, to fetch all values from the selected language for use
   static Future<StringLoadMode> initializeStrings()async{
     // Get the keys class
@@ -39,6 +74,7 @@ class AppStrings{
     switch (loadMode){
       case StringLoadMode.warn:
       case StringLoadMode.offline:
+        hasMissingStrings = loadMode == StringLoadMode.warn;
         final locale = AppLocales.getCurrentLocale();
         if(locale == AppLocale.none){
           return loadMode;
@@ -48,6 +84,7 @@ class AppStrings{
         ClassMirror appStringIdsClass = stringsReflectable.reflectType(AppStringIds) as ClassMirror;
         _setupByJson(await AppStorage.getData<String>('appLanguage$currentLocale'), appStringIdsClass);
         return loadMode;
+
       case StringLoadMode.online:
         final manifest = await ResourceNetworkLoader.fetchLanguageManifest();
         final currentVersion = await AppStorage.getData<int>(AppStorageKeys.appStringsDownloadedVersion);
@@ -68,7 +105,7 @@ class AppStrings{
         mirror.declarations.forEach((key, _){
           // loop thru all keys
           if(key.toLowerCase().contains('url')){
-            // is a language propery
+            // is a language property
             futures.add( // add to list
               Future(()async{
                 // fetch json by key
@@ -173,34 +210,4 @@ enum StringLoadMode {
   offline,
   warn,
   fatal
-}
-
-/// Stores the ids, which can be found in the language json
-@stringsReflectable
-class AppStringIds{
-  static bool _hasSetUp = false;
-  //-------------------------------------
-  // The names must match with the json
-  static late final int appName;
-  static late final int appDeveloper;
-}
-
-@stringsReflectable
-/// Local manifest, this matches the one on the server
-class StringsManifest{
-  late final int langpackVersion;
-  late final String huUrl;
-  late final String enUrl;
-  late final String deUrl;
-  late final String esUrl;
-
-  /// Create a json from instance
-  static String toJson(StringsManifest stringsManifest){
-    return JsonSerialize.toJson(stringsReflectable, stringsManifest);
-  }
-
-  /// Create an instance from json
-  static StringsManifest fromJson(String json){
-    return JsonSerialize.fromJson(stringsReflectable, StringsManifest(), json);
-  }
 }
