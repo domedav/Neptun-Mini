@@ -1,4 +1,8 @@
 {
   "appName": "Neptun Mini",
-  "appDeveloper": "domedav"
+  "appDeveloper": "domedav",
+  "loginGreetHeaderText": "Szia!",
+  "loginGreetExplainingText": "Az app használatához szükséged lesz a neptunos naptárad linkjére.",
+  "loginUrlInputFieldHint": "Ide másold be",
+  "loginUrlQuestionmarkHint": ""
 }

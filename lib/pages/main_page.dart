@@ -14,11 +14,9 @@ class _AppMainPageState extends State<AppMainPage>{
   Widget build(BuildContext context) {
     return Scaffold(
       body: BasicPaddedPage(
-        child: Column(
-          children: [
+        children: [
 
-          ],
-        )
+        ],
       ),
     );
   }

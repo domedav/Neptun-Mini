@@ -23,6 +23,7 @@ class AppStringIds{
   static late final int appDeveloper;
 
   static late final int loginGreetHeaderText;
+  static late final int loginGreetExplainingText;
   static late final int loginUrlInputFieldHint;
   static late final int loginUrlQuestionmarkHint;
 }
@@ -53,7 +54,7 @@ class AppStrings{
   static const String _defaultMissingString = "!MISSING!";
   static bool hasMissingStrings = false;
   /// This is called, to fetch all values from the selected language for use
-  static Future<StringLoadMode> initializeStrings()async{
+  static Future<StringLoadMode> initializeStrings({bool forceRefresh = false})async{
     // Get the keys class
     ClassMirror mirror = stringsReflectable.reflectType(AppStringIds) as ClassMirror;
     // Multiple setups are allowed, for dynamic language change
@@ -70,7 +71,10 @@ class AppStrings{
     _loadedStringRes.clear();
     // Default value, when any else is missing
     _loadedStringRes.addAll({0: _defaultMissingString});
-    final loadMode = await _getStringLoadMode();
+    var loadMode = await _getStringLoadMode();
+    if(forceRefresh){
+      loadMode = StringLoadMode.online;
+    }
     switch (loadMode){
       case StringLoadMode.warn:
       case StringLoadMode.offline:

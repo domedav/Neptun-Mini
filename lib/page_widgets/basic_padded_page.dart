@@ -24,9 +24,9 @@ class BasicPaddedPage extends StatelessWidget{
     );
   }
 
-  final Widget child;
+  final List<Widget> children;
 
-  BasicPaddedPage({required this.child});
+  BasicPaddedPage({required this.children});
 
   @override
   Widget build(BuildContext context) {
@@ -34,7 +34,9 @@ class BasicPaddedPage extends StatelessWidget{
       width: MediaQuery.of(context).size.width,
       height: MediaQuery.of(context).size.height,
       padding: MediaQuery.of(context).padding,
-      child: child,
+      child: Stack(
+        children: children,
+      ),
     );
   }
 }
